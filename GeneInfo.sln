@@ -1,0 +1,25 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.10.35027.167
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GeneInfo", "GeneInfo\GeneInfo.csproj", "{9594D894-183C-40CC-A5B4-6A23BDD4E145}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{9594D894-183C-40CC-A5B4-6A23BDD4E145}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9594D894-183C-40CC-A5B4-6A23BDD4E145}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9594D894-183C-40CC-A5B4-6A23BDD4E145}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9594D894-183C-40CC-A5B4-6A23BDD4E145}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {C980BF27-FD07-4050-B35B-5F54A0B1F32F}
+	EndGlobalSection
+EndGlobal
