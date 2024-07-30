@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 using System.Threading.Tasks;
 using static GeneInfo.API;
 
@@ -11,15 +13,137 @@ namespace GeneInfo
 {
     internal static class API
     {
+        internal class HttpRequestExceptionExt : HttpRequestException
+        {
+            public HttpResponseMessage? HttpMessage { get; }
+
+            public HttpRequestExceptionExt(string? message, Exception? inner, HttpStatusCode? statusCode, HttpResponseMessage? msg) : base(message, inner, statusCode)
+            {
+                HttpMessage = msg;
+            }
+        }
+
+        const int MAX_RETRY_DELAY = 16000;
+        const int RETRY_INCREMENT = 2000;
+        const int INITIAL_RETRY_DELAY = 2000;
+
         internal const string HOST = "https://rest.ensembl.org";
         private static HttpClient http = new();
+        private static TokenBucketRateLimiter httpRateLimiter = new(new()
+        {
+            AutoReplenishment = true,
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+            ReplenishmentPeriod = TimeSpan.FromSeconds(0.1),
+            TokenLimit = 10,
+            QueueLimit = int.MaxValue,
+            TokensPerPeriod = 1
+        });
 
-        internal static async Task<Transcript[]?> GetTranscripts(string geneId)
+        private static void HandleError(string name, ref int retry, string url, HttpRequestExceptionExt e)
+        {
+            if (e.StatusCode == HttpStatusCode.TooManyRequests)
+            {
+                if (e.HttpMessage != null && e.HttpMessage.Headers.RetryAfter != null && e.HttpMessage.Headers.RetryAfter.Delta.HasValue)
+                {
+                    Logger.Warn($"{name}: Rate limited " + url);
+                    retry = (int)e.HttpMessage.Headers.RetryAfter.Delta.Value.TotalMilliseconds;
+                } else if(e.HttpMessage == null)
+                {
+                    Logger.Warn($"{name}: Rate limited {e.Message} " + url);
+                }
+                else
+                {
+                    Logger.Warn($"{name}: Rate limited " + url);
+                }
+            }
+            else if (e.StatusCode == HttpStatusCode.InternalServerError)
+            {
+                Logger.Warn($"{name}: Internal server error " + url);
+                retry += 2 * RETRY_INCREMENT;
+            }
+            else
+            {
+                Logger.Error($"{name}: ERROR " + url + " " + e.ToString());
+            }
+            Logger.Info($"{name}: Retrying request in {retry / 1000} seconds");
+        }
+
+        internal static async Task<Gene?> GetGene(string geneId)
         {
             string url = HOST + $"/lookup/id/{geneId}?expand=1;content-type=application/json";
-            Logger.Trace("GetTranscripts: GET " + url);
-            Gene? gene = await http.GetFromJsonAsync<Gene>(url, SourceGenerationContext.Default.Gene);
-            return gene?.Transcript;
+            Logger.Trace("GetGene: GET " + url);
+            Gene? gene = null;
+            int retry = INITIAL_RETRY_DELAY;
+            while (true)
+            {
+                try
+                {
+                    using var rate = await httpRateLimiter.AcquireAsync();
+                    if (rate.IsAcquired)
+                    {
+                        var res = await http.GetAsync(url);
+                        if (res.IsSuccessStatusCode)
+                        {
+                            gene = await res.Content.ReadFromJsonAsync<Gene>(SourceGenerationContext.Default.Gene);
+                            break;
+                        }
+                        else
+                        {
+                            throw new HttpRequestExceptionExt(res.ReasonPhrase, null, res.StatusCode, res);
+                        }
+                    }
+                    else
+                    {
+                        throw new HttpRequestExceptionExt("Local bucket rate limit reached", null, HttpStatusCode.TooManyRequests, null);
+                    }
+                }
+                catch (HttpRequestExceptionExt e)
+                {
+                    HandleError("GetGene", ref retry, url, e);
+                    await Task.Delay(retry);
+                    retry = Math.Min(MAX_RETRY_DELAY, retry + RETRY_INCREMENT);
+                }
+            }
+            return gene;
+        }
+
+        internal static async Task<Gene?> GetGeneWithSymbol(string symbol)
+        {
+            string url = HOST + $"/lookup/symbol/homo_sapiens/{symbol}?expand=1;content-type=application/json";
+            Logger.Trace("GetGeneWithSymbol: GET " + url);
+            Gene? gene = null;
+            int retry = INITIAL_RETRY_DELAY;
+            while (true)
+            {
+                try
+                {
+                    using var rate = await httpRateLimiter.AcquireAsync();
+                    if (rate.IsAcquired)
+                    {
+                        var res = await http.GetAsync(url);
+                        if (res.IsSuccessStatusCode)
+                        {
+                            gene = await res.Content.ReadFromJsonAsync<Gene>(SourceGenerationContext.Default.Gene);
+                            break;
+                        }
+                        else
+                        {
+                            throw new HttpRequestExceptionExt(res.ReasonPhrase, null, res.StatusCode, res);
+                        }
+                    }
+                    else
+                    {
+                        throw new HttpRequestExceptionExt("Local bucket rate limit reached", null, HttpStatusCode.TooManyRequests, null);
+                    }
+                }
+                catch (HttpRequestExceptionExt e)
+                {
+                    HandleError("GetGeneWithSymbol", ref retry, url, e);
+                    await Task.Delay(retry);
+                    retry = Math.Min(MAX_RETRY_DELAY, retry + RETRY_INCREMENT);
+                }
+            }
+            return gene;
         }
 
         internal static async Task<Domain[]?> GetSmartDomains(string translationId)
@@ -27,12 +151,43 @@ namespace GeneInfo
             List<Domain> domainList = new List<Domain>();
             string url = HOST + $"/overlap/translation/{translationId}?type=Smart&content-type=application/json";
             Logger.Trace("GetSmartDomains: GET " + url);
-            var domains = http.GetFromJsonAsAsyncEnumerable<Domain>(url, SourceGenerationContext.Default.Domain);
-            await foreach (Domain? domain in domains)
+            int retry = INITIAL_RETRY_DELAY;
+            while (true)
             {
-                if (domain != null)
+                try
                 {
-                    domainList.Add(domain);
+                    using var rate = await httpRateLimiter.AcquireAsync();
+                    if (rate.IsAcquired)
+                    {
+                        var res = await http.GetAsync(url);
+                        if (res.IsSuccessStatusCode)
+                        {
+                            var domains = res.Content.ReadFromJsonAsAsyncEnumerable<Domain>(SourceGenerationContext.Default.Domain);
+                            await foreach (Domain? domain in domains)
+                            {
+                                if (domain != null)
+                                {
+                                    domainList.Add(domain);
+                                }
+                            }
+                            break;
+                        }
+                        else
+                        {
+                            throw new HttpRequestExceptionExt(res.ReasonPhrase, null, res.StatusCode, res);
+                        }
+                    }
+                    else
+                    {
+                        throw new HttpRequestExceptionExt("Local bucket rate limit reached", null, HttpStatusCode.TooManyRequests, null);
+                    }
+                }
+                catch (HttpRequestExceptionExt e)
+                {
+                    HandleError("GetSmartDomains", ref retry, url, e);
+                    await Task.Delay(retry);
+                    retry = Math.Min(MAX_RETRY_DELAY, retry + RETRY_INCREMENT);
+                    domainList.Clear();
                 }
             }
 
@@ -43,7 +198,40 @@ namespace GeneInfo
         {
             string url = HOST + $"/homology/id/human/{geneId}?type=orthologues&content-type=application/json";
             Logger.Trace("GetOrthologs: GET " + url);
-            HomologyResponse? response = await http.GetFromJsonAsync<HomologyResponse>(url, SourceGenerationContext.Default.HomologyResponse);
+
+            HomologyResponse? response = null;
+            int retry = INITIAL_RETRY_DELAY;
+            while (true)
+            {
+                try
+                {
+                    using var rate = await httpRateLimiter.AcquireAsync();
+                    if (rate.IsAcquired)
+                    {
+                        var res = await http.GetAsync(url);
+                        if (res.IsSuccessStatusCode)
+                        {
+                            response = await res.Content.ReadFromJsonAsync<HomologyResponse>(SourceGenerationContext.Default.HomologyResponse);
+                            break;
+                        }
+                        else
+                        {
+                            throw new HttpRequestExceptionExt(res.ReasonPhrase, null, res.StatusCode, res);
+                        }
+                    }
+                    else
+                    {
+                        throw new HttpRequestExceptionExt("Local bucket rate limit reached", null, HttpStatusCode.TooManyRequests, null);
+                    }
+                }
+                catch (HttpRequestExceptionExt e)
+                {
+                    HandleError("GetOrthologs", ref retry, url, e);
+                    await Task.Delay(retry);
+                    retry = Math.Min(MAX_RETRY_DELAY, retry + RETRY_INCREMENT);
+                }
+            }
+
             if (response == null)
                 return null;
 
@@ -133,6 +321,10 @@ namespace GeneInfo
 
         internal class Gene
         {
+            [JsonPropertyName("id")]
+            public string? Id { get; set; }
+            [JsonPropertyName("display_name")]
+            public string? DisplayName { get; set; }
             public Transcript[]? Transcript { get; set; }
         }
     }
