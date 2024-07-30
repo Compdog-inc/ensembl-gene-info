@@ -8,6 +8,13 @@ namespace GeneInfo
 {
     internal static class Logger
     {
+        public static void Debug(string message)
+        {
+            Console.ForegroundColor = ConsoleColor.DarkGray;
+            Console.WriteLine($"[DEBUG] {message}");
+            Console.ForegroundColor = ConsoleColor.White;
+        }
+
         public static void Trace(string message)
         {
             Console.ForegroundColor = ConsoleColor.DarkGray;

@@ -41,7 +41,7 @@ namespace GeneInfo
 
         internal static async Task<Homology[]?> GetOrthologs(string geneId)
         {
-            string url = HOST + $"/homology/id/human/{geneId}?type=orthologues&format=condensed&content-type=application/json";
+            string url = HOST + $"/homology/id/human/{geneId}?type=orthologues&content-type=application/json";
             Logger.Trace("GetOrthologs: GET " + url);
             HomologyResponse? response = await http.GetFromJsonAsync<HomologyResponse>(url, SourceGenerationContext.Default.HomologyResponse);
             if (response == null)
@@ -61,12 +61,22 @@ namespace GeneInfo
             return homologies.ToArray();
         }
 
-        internal class Homology
+        internal class HomologyReference
         {
             [JsonPropertyName("id")]
             public string? Id { get; set; }
             [JsonPropertyName("species")]
             public string? Species { get; set; }
+            [JsonPropertyName("perc_id")]
+            public double PercentId { get; set; }
+        }
+
+        internal class Homology
+        {
+            [JsonPropertyName("source")]
+            public HomologyReference? Source { get; set; }
+            [JsonPropertyName("target")]
+            public HomologyReference? Target { get; set; }
             [JsonPropertyName("type")]
             public string? Type { get; set; }
         }
@@ -135,6 +145,8 @@ namespace GeneInfo
     [JsonSerializable(typeof(Domain))]
     [JsonSerializable(typeof(HomologyResponse))]
     [JsonSerializable(typeof(HomologyData))]
+    [JsonSerializable(typeof(Homology))]
+    [JsonSerializable(typeof(HomologyReference))]
     internal partial class SourceGenerationContext : JsonSerializerContext
     {
     }

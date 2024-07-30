@@ -13,7 +13,7 @@ namespace GeneInfo
             return Math.Abs(a - b) < 20;
         }
 
-        public static async Task<TranscriptInfo[]?> GetTranscriptsInfo(string geneId)
+        public static async Task<TranscriptInfo[]?> GetTranscriptsInfo(string geneId, string species, string type, Func<string?, bool> domainMatch)
         {
             API.Transcript[]? transcripts = await API.GetTranscripts(geneId);
             if (transcripts == null)
@@ -28,6 +28,7 @@ namespace GeneInfo
                     int exonCount = transcript.Exon == null ? 0 : transcript.Exon.Length;
                     API.Domain[]? domains = await API.GetSmartDomains(transcript.Translation.Id);
                     int numberOfDomains = 0;
+                    int numberOfMatchedDomains = 0;
                     List<string> uniqueDomains = new(domains?.Length ?? 0);
                     if (domains != null)
                     {
@@ -65,6 +66,10 @@ namespace GeneInfo
                                 {
                                     uniqueDomains.Add(domain.Description);
                                 }
+                                if (domainMatch(domain.Description))
+                                {
+                                    numberOfMatchedDomains++;
+                                }
                             }
                         }
 
@@ -73,34 +78,68 @@ namespace GeneInfo
                             Logger.Warn("Removed " + overlappingDomains.Count + " overlapping domains");
                         }
                     }
-                    infos.Add(new TranscriptInfo(transcript.Id, exonCount, numberOfDomains, uniqueDomains.ToArray()));
+                    infos.Add(new TranscriptInfo(transcript.Id, exonCount, numberOfDomains, numberOfMatchedDomains, uniqueDomains.ToArray(), species, type));
                 }
             }
 
             return infos.ToArray();
         }
 
-        public static async Task<TranscriptInfo[]> GetTranscriptsInfoWithOrthologs(string geneId, Func<string?, bool> speciesMatch)
+        public static async Task<TranscriptInfo[]> GetTranscriptsInfoWithOrthologs(string geneId, Func<string?, bool> speciesMatch, Func<string?, bool> domainMatch, string? species, string? type)
         {
             Logger.Info("Requesting transcript info for gene '" + geneId + "'");
 
             List<TranscriptInfo> infos = [];
-            infos.AddRangeNullable(await GetTranscriptsInfo(geneId));
+
+            if (species != null)
+            {
+                infos.AddRangeNullable(await GetTranscriptsInfo(geneId, species, type ?? "unknown", domainMatch));
+            }
+
             var orthologs = await API.GetOrthologs(geneId);
             if (orthologs != null)
             {
                 Logger.Info("Found " + orthologs.Length + " orthologs (unfiltered)");
+
+                Dictionary<string, (int index, List<API.Homology> list)> one2ManyList = [];
                 foreach (var ortholog in orthologs)
                 {
-                    if (ortholog.Id != null && speciesMatch(ortholog.Species))
+                    if (ortholog.Target != null && ortholog.Target.Id != null && speciesMatch(ortholog.Target.Species))
                     {
                         if (ortholog.Type == "ortholog_one2one")
                         {
-                            infos.AddRangeNullable(await GetTranscriptsInfoWithOrthologs(ortholog.Id, speciesMatch));
+                            infos.AddRangeNullable(await GetTranscriptsInfoWithOrthologs(ortholog.Target.Id, speciesMatch, domainMatch, ortholog.Target.Species, ortholog.Type));
                         }
                         else if (ortholog.Type == "ortholog_one2many")
                         {
-                            infos.AddRangeNullable(await GetTranscriptsInfoWithOrthologs(ortholog.Id, speciesMatch));
+                            if (ortholog.Target.Species != null && one2ManyList.TryGetValue(ortholog.Target.Species, out var list))
+                            {
+                                list.list.Add(ortholog);
+                            }
+                            else if (ortholog.Target.Species != null)
+                            {
+                                one2ManyList.Add(ortholog.Target.Species, (infos.Count, [ortholog]));
+                            }
+                        }
+                    }
+                }
+
+                if (one2ManyList.Count > 0)
+                {
+                    Logger.Info("Found " + one2ManyList.Count + " 1-to-many orthologs");
+                }
+
+                int indexOffset = 0;
+                foreach ((int index, var list) in one2ManyList.Values)
+                {
+                    var best = list.OrderByDescending((homology) => (homology.Source?.PercentId ?? 0) + (homology.Target?.PercentId ?? 0)).FirstOrDefault();
+                    if (best != null && best.Target != null && best.Target.Id != null)
+                    {
+                        var ret = await GetTranscriptsInfoWithOrthologs(best.Target.Id, speciesMatch, domainMatch, best.Target.Species, best.Type);
+                        if (ret != null)
+                        {
+                            infos.InsertRange(index + indexOffset, ret);
+                            indexOffset += ret.Length;
                         }
                     }
                 }
@@ -109,11 +148,14 @@ namespace GeneInfo
         }
     }
 
-    public class TranscriptInfo(string id, int exonCount, int numberOfDomains, string[] uniqueDomains)
+    public class TranscriptInfo(string id, int exonCount, int numberOfDomains, int numberOfMatchedDomains, string[] uniqueDomains, string species, string type)
     {
         public string Id { get; set; } = id;
         public int ExonCount { get; set; } = exonCount;
         public int NumberOfDomains { get; set; } = numberOfDomains;
+        public int NumberOfMatchedDomains { get; set; } = numberOfMatchedDomains;
         public string[] UniqueDomains { get; set; } = uniqueDomains;
+        public string Species { get; set; } = species;
+        public string Type { get; set; } = type;
     }
 }
