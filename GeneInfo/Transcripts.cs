@@ -80,7 +80,7 @@ namespace GeneInfo
             return infos.ToArray();
         }
 
-        public static async Task<TranscriptInfo[]> GetTranscriptsInfoWithOrthologs(string geneId)
+        public static async Task<TranscriptInfo[]> GetTranscriptsInfoWithOrthologs(string geneId, Func<string?, bool> speciesMatch)
         {
             Logger.Info("Requesting transcript info for gene '" + geneId + "'");
 
@@ -92,15 +92,15 @@ namespace GeneInfo
                 Logger.Info("Found " + orthologs.Length + " orthologs (unfiltered)");
                 foreach (var ortholog in orthologs)
                 {
-                    if (ortholog.Species == "cercocebus_atys" && ortholog.Id != null)
+                    if (ortholog.Id != null && speciesMatch(ortholog.Species))
                     {
                         if (ortholog.Type == "ortholog_one2one")
                         {
-                            infos.AddRangeNullable(await GetTranscriptsInfoWithOrthologs(ortholog.Id));
+                            infos.AddRangeNullable(await GetTranscriptsInfoWithOrthologs(ortholog.Id, speciesMatch));
                         }
                         else if (ortholog.Type == "ortholog_one2many")
                         {
-                            infos.AddRangeNullable(await GetTranscriptsInfoWithOrthologs(ortholog.Id));
+                            infos.AddRangeNullable(await GetTranscriptsInfoWithOrthologs(ortholog.Id, speciesMatch));
                         }
                     }
                 }
