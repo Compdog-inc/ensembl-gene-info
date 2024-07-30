@@ -1,0 +1,14 @@
+﻿Pan troglodytes
+Macaca mulatta
+papio anubis
+gorilla gorilla
+Mus musculus
+sus scrofa
+gallus gallus
+drosophila melongaster
+c elegans
+Danio rerio
+Bos taurus
+Canis familiaris
+equus caballus
+anolis carolinensis

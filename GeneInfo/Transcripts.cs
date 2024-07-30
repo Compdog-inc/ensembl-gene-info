@@ -13,6 +13,26 @@ namespace GeneInfo
             return Math.Abs(a - b) < 20;
         }
 
+        private static string FormatDomainType(string type)
+        {
+            if(type.Equals("ortholog_one2one", StringComparison.InvariantCultureIgnoreCase))
+            {
+                return "1:1 ortholog";
+            } else if (type.Equals("ortholog_one2many", StringComparison.InvariantCultureIgnoreCase))
+            {
+                return "1:many ortholog";
+            }
+
+            return type;
+        }
+
+        private static string FormatSpecies(string species)
+        {
+            species = species.Replace('_', ' ');
+            species = char.ToUpperInvariant(species[0]) + species[1..]; // capitalize first letter
+            return species;
+        }
+
         public static async Task<TranscriptInfo[]?> GetTranscriptsInfo(string geneId, string species, string type, Func<string?, bool> domainMatch)
         {
             API.Transcript[]? transcripts = await API.GetTranscripts(geneId);
@@ -78,7 +98,7 @@ namespace GeneInfo
                             Logger.Warn("Removed " + overlappingDomains.Count + " overlapping domains");
                         }
                     }
-                    infos.Add(new TranscriptInfo(transcript.Id, exonCount, numberOfDomains, numberOfMatchedDomains, uniqueDomains.ToArray(), species, type));
+                    infos.Add(new TranscriptInfo(transcript.Id, exonCount, numberOfDomains, numberOfMatchedDomains, uniqueDomains.ToArray(), FormatSpecies(species), FormatDomainType(type)));
                 }
             }
 

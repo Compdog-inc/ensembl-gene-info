@@ -157,7 +157,7 @@ namespace GeneInfo
         {
             // delimiter detection
             var delims = delimiters.Concat(PossibleDelimiters).Distinct().ToArray();
-            Logger.Trace($"Checking for [{delims}]");
+            Logger.Trace($"Checking for [{string.Join(',', delims)}]");
 
             var tries = delims.Select(d =>
             {
@@ -183,7 +183,7 @@ namespace GeneInfo
             Logger.Debug($"Detected delimiter {delimiter} with {columnCount} column(s)");
 
             // quote detection
-            Logger.Trace($"Checking for [{PossibleQuotes}]");
+            Logger.Trace($"Checking for [{string.Join(',', PossibleQuotes)}]");
             var quoteTries = PossibleQuotes.Select(q =>
             {
                 bool possible = TryParseQuote(sample, delimiter, q);
@@ -203,7 +203,7 @@ namespace GeneInfo
             Logger.Debug($"Detected quote {quote}");
 
             // escape detection
-            Logger.Trace($"Checking for [{PossiblesEscapes}]");
+            Logger.Trace($"Checking for [{string.Join(',', PossiblesEscapes)}]");
             var escapeTries = PossiblesEscapes.Select(e =>
             {
                 bool possible = TryParseEscape(sample, delimiter, quote, e);

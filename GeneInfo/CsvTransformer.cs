@@ -10,9 +10,9 @@ namespace GeneInfo
 {
     public static class CsvTransformer
     {
-        public static string[] TransformText(string text, char rowDelimiter)
+        public static string[] TransformText(string text, char[] rowDelimiters)
         {
-            return text.Split(rowDelimiter);
+            return text.Split(rowDelimiters);
         }
 
         public static string FormatEscape(string raw, CsvDialect dialect)

@@ -8,10 +8,10 @@ namespace GeneInfo
 {
     public static class CsvReader
     {
-        public static CsvTable ReadText(string text, char rowDelimiter, int sampleSize, int safeRowCount, params char[] columnDelimiters)
+        public static CsvTable ReadText(string text, char[] rowDelimiters, int sampleSize, int safeRowCount, params char[] columnDelimiters)
         {
             text = text.ReplaceLineEndings("\n");
-            var raw_rows = CsvTransformer.TransformText(text, rowDelimiter);
+            var raw_rows = CsvTransformer.TransformText(text, rowDelimiters);
             var sample = raw_rows[..Math.Min(raw_rows.Length, sampleSize)];
             Logger.Trace($"Detecting CSV with {raw_rows.Length} row(s) using {sample.Length} sample size.");
 
@@ -35,14 +35,14 @@ namespace GeneInfo
             return new CsvTable(columns, rows, hasHeader);
         }
 
-        public static CsvTable ReadFile(string path, char rowDelimiter, int sampleSize, int safeRowCount, params char[] columnDelimiters)
+        public static CsvTable ReadFile(string path, char[] rowDelimiters, int sampleSize, int safeRowCount, params char[] columnDelimiters)
         {
             using FileStream fs = File.OpenRead(path);
             using StreamReader reader = new(fs);
             string text = reader.ReadToEnd();
             reader.Close();
             fs.Close();
-            return ReadText(text, rowDelimiter, sampleSize, safeRowCount, columnDelimiters);
+            return ReadText(text, rowDelimiters, sampleSize, safeRowCount, columnDelimiters);
         }
     }
 }

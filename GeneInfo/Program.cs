@@ -1,11 +1,48 @@
 ﻿using GeneInfo;
 
+Logger.MinLevel = Logger.LogLevel.Info;
+CsvTable orthologList = CsvReader.ReadFile("orthologs.txt", ['\n', ','], 256, 2);
+CsvTable domainList = CsvReader.ReadFile("domains.txt", ['\n', ','], 256, 2);
+Logger.MinLevel = Logger.LogLevel.Trace;
+
 TranscriptInfo[]? transcripts = await Transcripts.GetTranscriptsInfoWithOrthologs("ENSG00000176871", (species) =>
 {
-    return species == "pan_troglodytes";
+    if (species == null) return false;
+
+    foreach (var row in orthologList.Rows)
+    {
+        if (row.Values.Length > 0)
+        {
+            string val = row.Values[0].ToString().Trim();
+            string formatted = val.Replace(' ', '_').ToLowerInvariant();
+            if (species.Contains(formatted, StringComparison.InvariantCultureIgnoreCase))
+            {
+                return true;
+            }
+        }
+    }
+
+    return false;
 }, (domain) =>
 {
-    return domain?.Contains("wd40", StringComparison.InvariantCultureIgnoreCase) ?? false;
+    if (domain == null) return false;
+
+    foreach (var row in domainList.Rows)
+    {
+        if (row.Values.Length > 0)
+        {
+            string[] vals = row.Values[0].ToString().Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).SelectMany(v => v.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)).ToArray();
+            foreach (var val in vals)
+            {
+                if (domain.Contains(val, StringComparison.InvariantCultureIgnoreCase))
+                {
+                    return true;
+                }
+            }
+        }
+    }
+
+    return false;
 }, "Homo sapiens", "human");
 
 var builder = new CsvBuilder()
@@ -28,7 +65,7 @@ foreach (var transcript in transcripts)
         .AddToRow(transcript.NumberOfMatchedDomains)
         .AddToRow(transcript.UniqueDomains.Length)
         .AddToRow(transcript.UniqueDomains.Aggregate((a, b) => a + ", " + b))
-        .AddToRow(transcript.NumberOfMatchedDomains)
+        .AddToRow(transcript.Type)
         .PushRow();
 }
 
