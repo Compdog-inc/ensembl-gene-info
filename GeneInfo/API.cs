@@ -148,7 +148,7 @@ namespace GeneInfo
 
         internal static async Task<Transcript?> GetTranscript(string transcriptId)
         {
-            string url = HOST + $"/lookup/id/{transcriptId}?content-type=application/json";
+            string url = HOST + $"/lookup/id/{transcriptId}?expand=1;content-type=application/json";
             Logger.Trace("GetTranscript: GET " + url);
             Transcript? transcript = null;
             int retry = INITIAL_RETRY_DELAY;
@@ -290,7 +290,7 @@ namespace GeneInfo
 
         internal static async Task<MapEntry[]?> MapTranslation(string translationId, int start, int end)
         {
-            string url = HOST + $"/map/translation/{translationId}/{start}..{end}?content-type=application/json'";
+            string url = HOST + $"/map/translation/{translationId}/{start}..{end}?content-type=application/json";
             Logger.Trace("MapTranslation: GET " + url);
 
             MapResponse? response = null;

@@ -28,6 +28,7 @@ namespace GeneInfo
             return sw.Elapsed.ToString("c");
         }
 
+        [DebuggerStepThrough]
         public static void Debug(string message)
         {
             if (MinLevel > LogLevel.Debug) return;
@@ -40,6 +41,7 @@ namespace GeneInfo
             }
         }
 
+        [DebuggerStepThrough]
         public static void Trace(string message)
         {
             if (MinLevel > LogLevel.Trace) return;
@@ -52,6 +54,7 @@ namespace GeneInfo
             }
         }
 
+        [DebuggerStepThrough]
         public static void Info(string message)
         {
             if (MinLevel > LogLevel.Info) return;
@@ -64,6 +67,7 @@ namespace GeneInfo
             }
         }
 
+        [DebuggerStepThrough]
         public static void Warn(string message)
         {
             if (MinLevel > LogLevel.Warn) return;
@@ -76,6 +80,7 @@ namespace GeneInfo
             }
         }
 
+        [DebuggerStepThrough]
         public static void Error(string message)
         {
             if (MinLevel > LogLevel.Error) return;

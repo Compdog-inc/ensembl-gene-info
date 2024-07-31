@@ -23,6 +23,36 @@ namespace GeneInfo
             Escape = escape;
         }
 
+        public static string[] ApproximateColumnSplit(string row, char delimiter)
+        {
+            List<string> columns = [];
+
+            StringBuilder sb = new();
+            bool inQuote = false;
+            for (int i = 0; i < row.Length; i++)
+            {
+                if (row[i] == '"' || row[i] == '\'')
+                {
+                    inQuote = !inQuote;
+                    sb.Append(row[i]);
+                }
+                else if (row[i] == delimiter && !inQuote)
+                {
+                    columns.Add(sb.ToString());
+                    sb.Clear();
+                }
+                else
+                {
+                    sb.Append(row[i]);
+                }
+            }
+
+            if (sb.Length > 0)
+                columns.Add(sb.ToString());
+
+            return columns.ToArray();
+        }
+
         public static bool TryParseDelimiter(string[] sample, char delimiter, out int columnCount, int safeRowCount)
         {
             Logger.Trace($"Trying to parse delimiter {delimiter}");
@@ -30,7 +60,7 @@ namespace GeneInfo
 
             for (int i = 0; i < sample.Length; i++)
             {
-                int tmp = sample[i].Split(delimiter).Length;
+                int tmp = ApproximateColumnSplit(sample[i], delimiter).Length;
                 if (i == 0)
                 {
                     Logger.Trace($"First row has {tmp} column(s)");
@@ -60,25 +90,25 @@ namespace GeneInfo
             if (quote == null) return true; // always a possibility
             for (int i = 0; i < sample.Length; i++)
             {
-                var columns = sample[i].Split(delimiter);
+                var columns = ApproximateColumnSplit(sample[i], delimiter);
                 bool bad = false;
                 foreach (var column in columns)
                 {
-                    if (column.Length < 2)
+                    if (column.Length < 2 && (column.Length == 0 || !char.IsDigit(column[0])))
                     {
                         Logger.Trace($"TryParseQuote failed: invalid column {column}");
                         bad = true;
                         break;
                     }
 
-                    if (column[0] != quote)
+                    if (column[0] != quote && !char.IsDigit(column[0]))
                     {
                         Logger.Trace($"TryParseQuote failed: invalid first char {column[0]}");
                         bad = true;
                         break;
                     }
 
-                    if (column[^1] != quote)
+                    if (column[^1] != quote && !char.IsDigit(column[0]))
                     {
                         Logger.Trace($"TryParseQuote failed: invalid last char {column[^1]}");
                         bad = true;
@@ -109,11 +139,11 @@ namespace GeneInfo
             if (escape == null) return true; // always a possibility
             foreach (var row in sample)
             {
-                var columns = row.Split(delimiter);
+                var columns = ApproximateColumnSplit(row, delimiter);
                 foreach (var column in columns)
                 {
                     string content;
-                    if (quote == null)
+                    if (quote == null || (column.Length > 0 && column[0] != quote) || (column.Length > 0 && column[^1] != quote))
                         content = column;
                     else
                         content = column[1..^1];

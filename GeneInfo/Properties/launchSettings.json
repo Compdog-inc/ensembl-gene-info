@@ -13,7 +13,7 @@
     },
     "ExonCounter": {
       "commandName": "Project",
-      "commandLineArgs": "exon_counter transcripts.txt domains.txt exoncounts.csv"
+      "commandLineArgs": "exon_counter tables/ANK3.csv domains.txt exoncounts.csv"
     }
   }
 }
