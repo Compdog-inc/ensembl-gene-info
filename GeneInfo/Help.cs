@@ -14,7 +14,7 @@ namespace GeneInfo
 
         public string Usage => "help [module]";
 
-        public string Example => "help gene_traverse";
+        public string[] Examples => ["help gene_traverse"];
 
         public async Task<bool> Run(string[] args)
         {
@@ -30,7 +30,7 @@ namespace GeneInfo
                 return true;
             }
 
-            Console.WriteLine($"    {module.Name} - {module.Description}\n        Usage:   {module.Usage}\n        Example: {module.Example}");
+            module.PrintUsage();
 
             await Task.Yield();
             return true;

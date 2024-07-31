@@ -17,7 +17,7 @@ void PrintModuleList()
     Console.WriteLine("Included modules:\n");
     foreach (var module in IModule.IncludedModules)
     {
-        Console.WriteLine($"    {module.Name} - {module.Description}\n        Usage:   {module.Usage}\n        Example: {module.Example}");
+        module.PrintUsage();
     }
 }
 
@@ -39,5 +39,5 @@ if(module == null)
 
 if(!await module.Run(args[1..]))
 {
-    Console.WriteLine($"    {module.Name} - {module.Description}\n        Usage:   {module.Usage}\n        Example: {module.Example}");
+    module.PrintUsage();
 }

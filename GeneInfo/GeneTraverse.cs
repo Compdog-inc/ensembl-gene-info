@@ -8,7 +8,7 @@
 
         public string Usage => "gene_traverse [path_to_gene_list] [path_to_ortholog_list] [path_to_domain_list] [output_dir]";
 
-        public string Example => "gene_traverse genes.txt orthologs.txt domains.txt tables/";
+        public string[] Examples => ["gene_traverse genes.txt orthologs.txt domains.txt tables/"];
 
         private static bool IsDomainNear(int a, int b)
         {

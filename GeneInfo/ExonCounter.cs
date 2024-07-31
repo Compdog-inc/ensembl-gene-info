@@ -12,9 +12,12 @@ namespace GeneInfo
 
         public string Description => "Counts the number of exons that start inside a domain of a transcript.";
 
-        public string Usage => "exon_counter [path_to_transcript_list] [path_to_domain_list] [path_of_output_file.csv]";
+        public string Usage => "exon_counter [path_to_transcript_list or wildcard] [path_to_domain_list] [path_of_output_file.csv or wildcard (first * - name, second * - extension)]";
 
-        public string Example => "exon_counter transcripts.txt domains.txt exoncounts.csv";
+        public string[] Examples => [
+            "exon_counter transcripts.txt domains.txt exoncounts.csv",
+            "exon_counter tables/*.csv domains.txt tables/*.exoncounts.*"
+            ];
 
         public static async Task<TranscriptExonCounts?> GetTranscriptCounts(string transcriptId, Func<string?, bool> domainMatch)
         {
@@ -107,63 +110,8 @@ namespace GeneInfo
             return genomeDomains.ToArray();
         }
 
-        public async Task<bool> Run(string[] args)
+        public async Task RunFromMemory(CsvTable transcriptList, CsvTable domainList, string outputPath)
         {
-            if (args.Length < 3)
-                return false;
-
-            string transcriptListPath = args[0];
-            string domainListPath = args[1];
-            string outputPath = args[2];
-
-            bool validationError = false;
-            if (!File.Exists(transcriptListPath))
-            {
-                Logger.Error($"File '{transcriptListPath}' does not exist.");
-                validationError = true;
-            }
-
-            if (!File.Exists(domainListPath))
-            {
-                Logger.Error($"File '{domainListPath}' does not exist.");
-                validationError = true;
-            }
-
-            string? outputDir = Path.GetDirectoryName(outputPath);
-            try
-            {
-                if (!string.IsNullOrEmpty(outputDir) && !Directory.Exists(outputDir))
-                {
-                    Directory.CreateDirectory(outputDir);
-                }
-            }
-            catch
-            {
-                Logger.Error($"Directory '{outputDir}' is not accessible.");
-                validationError = true;
-            }
-
-            try
-            {
-                if (!File.Exists(outputPath))
-                {
-                    File.Create(outputPath).Dispose();
-                }
-            }
-            catch
-            {
-                Logger.Error($"File '{outputPath}' is not accessible.");
-                validationError = true;
-            }
-
-            if (validationError)
-                return true;
-
-            Logger.MinLevel = Logger.LogLevel.Info;
-            CsvTable domainList = CsvReader.ReadFile(domainListPath, ['\n', ','], 256, 2);
-            CsvTable transcriptList = CsvReader.ReadFile(transcriptListPath, ['\n'], 256, 2);
-            Logger.MinLevel = Logger.LogLevel.Trace;
-
             bool CheckDomain(string? domain)
             {
                 if (domain == null) return false;
@@ -207,6 +155,7 @@ namespace GeneInfo
 
                 var table = builder.ToTable();
 
+                string? outputDir = Path.GetDirectoryName(outputPath);
                 if (!string.IsNullOrEmpty(outputDir) && !Directory.Exists(outputDir))
                 {
                     Directory.CreateDirectory(outputDir);
@@ -242,6 +191,121 @@ namespace GeneInfo
             {
                 Logger.Error("Error writing file " + outputPath + ": " + e.ToString());
             }
+        }
+
+        public async Task<bool> Run(string[] args)
+        {
+            if (args.Length < 3)
+                return false;
+
+            string transcriptListPath = args[0];
+            string domainListPath = args[1];
+            string outputPath = args[2];
+
+            bool validationError = false;
+
+            string[] transcriptListPaths = [];
+
+            if (transcriptListPath.Contains('*') || transcriptListPath.Contains('?')) // wildcard
+            {
+                string? wildcardRoot = Path.GetDirectoryName(transcriptListPath);
+                transcriptListPaths = Directory.GetFiles(wildcardRoot ?? "./", Path.GetFileName(transcriptListPath));
+            }
+            else
+            {
+                transcriptListPaths = [transcriptListPath];
+                if (!File.Exists(transcriptListPath))
+                {
+                    Logger.Error($"File '{transcriptListPath}' does not exist.");
+                    validationError = true;
+                }
+            }
+
+            if (!File.Exists(domainListPath))
+            {
+                Logger.Error($"File '{domainListPath}' does not exist.");
+                validationError = true;
+            }
+
+            string? outputDir = Path.GetDirectoryName(outputPath);
+
+            try
+            {
+                if (!string.IsNullOrEmpty(outputDir) && !Directory.Exists(outputDir))
+                {
+                    Directory.CreateDirectory(outputDir);
+                }
+            }
+            catch
+            {
+                Logger.Error($"Directory '{outputDir}' is not accessible.");
+                validationError = true;
+            }
+
+            bool isOutputWildcard;
+
+            if (outputPath.Contains('*')) // wildcard
+            {
+                isOutputWildcard = true;
+            }
+            else
+            {
+                isOutputWildcard = false;
+                try
+                {
+                    if (!File.Exists(outputPath))
+                    {
+                        File.Create(outputPath).Dispose();
+                    }
+                }
+                catch
+                {
+                    Logger.Error($"File '{outputPath}' is not accessible.");
+                    validationError = true;
+                }
+            }
+
+            if (validationError)
+                return true;
+
+            Logger.MinLevel = Logger.LogLevel.Info;
+            CsvTable domainList = CsvReader.ReadFile(domainListPath, ['\n', ','], 256, 2);
+            CsvTable[] transcriptLists = new CsvTable[transcriptListPaths.Length];
+            for (int i = 0; i < transcriptListPaths.Length; i++)
+            {
+                transcriptLists[i] = CsvReader.ReadFile(transcriptListPaths[i], ['\n'], 256, 2);
+            }
+            Logger.MinLevel = Logger.LogLevel.Trace;
+
+            await Parallel.ForAsync(0, transcriptLists.Length, async (i, cancel) =>
+            {
+                string output;
+                if (isOutputWildcard)
+                {
+                    string wild = Path.GetFileName(outputPath);
+                    int nameIndex = wild.IndexOf('*');
+                    int extIndex = wild.LastIndexOf('*');
+
+                    bool longExt = false;
+                    if (extIndex > 0 && wild[extIndex - 1] == '.')
+                    {
+                        longExt = true;
+                        extIndex--;
+                    }
+
+                    if (nameIndex != -1 && extIndex > 0)
+                        wild = (nameIndex > 0 ? wild[..(nameIndex - 1)] : string.Empty) + Path.GetFileNameWithoutExtension(transcriptListPaths[i]) + wild[(nameIndex + 1)..(extIndex - 1)] + Path.GetExtension(transcriptListPaths[i]) + wild[(extIndex + (longExt ? 2 : 1))..];
+                    else if (nameIndex != -1)
+                        wild = (nameIndex > 0 ? wild[..(nameIndex - 1)] : string.Empty) + Path.GetFileNameWithoutExtension(transcriptListPaths[i]) + wild[(nameIndex + 1)..];
+
+                    output = Path.Join(outputDir, wild);
+                }
+                else
+                {
+                    output = outputPath;
+                }
+                await RunFromMemory(transcriptLists[i], domainList, output);
+            });
 
             return true;
         }

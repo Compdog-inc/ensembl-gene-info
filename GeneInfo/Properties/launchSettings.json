@@ -13,7 +13,11 @@
     },
     "ExonCounter": {
       "commandName": "Project",
-      "commandLineArgs": "exon_counter tables/ANK3.csv domains.txt exoncounts.csv"
+      "commandLineArgs": "exon_counter tables/WSB2.csv domains.txt *.exoncounts.csv"
+    },
+    "ExonCounter Wildcard": {
+      "commandName": "Project",
+      "commandLineArgs": "exon_counter test/*.csv domains.txt test/*.exoncounts.*"
     }
   }
 }
