@@ -146,6 +146,45 @@ namespace GeneInfo
             return gene;
         }
 
+        internal static async Task<Transcript?> GetTranscript(string transcriptId)
+        {
+            string url = HOST + $"/lookup/id/{transcriptId}?content-type=application/json";
+            Logger.Trace("GetTranscript: GET " + url);
+            Transcript? transcript = null;
+            int retry = INITIAL_RETRY_DELAY;
+            while (true)
+            {
+                try
+                {
+                    using var rate = await httpRateLimiter.AcquireAsync();
+                    if (rate.IsAcquired)
+                    {
+                        var res = await http.GetAsync(url);
+                        if (res.IsSuccessStatusCode)
+                        {
+                            transcript = await res.Content.ReadFromJsonAsync<Transcript>(SourceGenerationContext.Default.Transcript);
+                            break;
+                        }
+                        else
+                        {
+                            throw new HttpRequestExceptionExt(res.ReasonPhrase, null, res.StatusCode, res);
+                        }
+                    }
+                    else
+                    {
+                        throw new HttpRequestExceptionExt("Local bucket rate limit reached", null, HttpStatusCode.TooManyRequests, null);
+                    }
+                }
+                catch (HttpRequestExceptionExt e)
+                {
+                    HandleError("GetTranscript", ref retry, url, e);
+                    await Task.Delay(retry);
+                    retry = Math.Min(MAX_RETRY_DELAY, retry + RETRY_INCREMENT);
+                }
+            }
+            return transcript;
+        }
+
         internal static async Task<Domain[]?> GetSmartDomains(string translationId)
         {
             List<Domain> domainList = new List<Domain>();
@@ -249,6 +288,67 @@ namespace GeneInfo
             return homologies.ToArray();
         }
 
+        internal static async Task<MapEntry[]?> MapTranslation(string translationId, int start, int end)
+        {
+            string url = HOST + $"/map/translation/{translationId}/{start}..{end}?content-type=application/json'";
+            Logger.Trace("MapTranslation: GET " + url);
+
+            MapResponse? response = null;
+            int retry = INITIAL_RETRY_DELAY;
+            while (true)
+            {
+                try
+                {
+                    using var rate = await httpRateLimiter.AcquireAsync();
+                    if (rate.IsAcquired)
+                    {
+                        var res = await http.GetAsync(url);
+                        if (res.IsSuccessStatusCode)
+                        {
+                            response = await res.Content.ReadFromJsonAsync<MapResponse>(SourceGenerationContext.Default.MapResponse);
+                            break;
+                        }
+                        else
+                        {
+                            throw new HttpRequestExceptionExt(res.ReasonPhrase, null, res.StatusCode, res);
+                        }
+                    }
+                    else
+                    {
+                        throw new HttpRequestExceptionExt("Local bucket rate limit reached", null, HttpStatusCode.TooManyRequests, null);
+                    }
+                }
+                catch (HttpRequestExceptionExt e)
+                {
+                    HandleError("MapTranslation", ref retry, url, e);
+                    await Task.Delay(retry);
+                    retry = Math.Min(MAX_RETRY_DELAY, retry + RETRY_INCREMENT);
+                }
+            }
+
+            if (response == null)
+                return null;
+
+            if (response.Mappings == null)
+                return null;
+
+            return response.Mappings;
+        }
+
+        internal class MapEntry
+        {
+            [JsonPropertyName("start")]
+            public int Start { get; set; }
+            [JsonPropertyName("end")]
+            public int End { get; set; }
+        }
+
+        internal class MapResponse
+        {
+            [JsonPropertyName("mappings")]
+            public MapEntry[]? Mappings { get; set; }
+        }
+
         internal class HomologyReference
         {
             [JsonPropertyName("id")]
@@ -301,6 +401,10 @@ namespace GeneInfo
         {
             [JsonPropertyName("id")]
             public string? Id { get; set; }
+            [JsonPropertyName("start")]
+            public int Start { get; set; }
+            [JsonPropertyName("end")]
+            public int End { get; set; }
         }
 
         internal class Translation
@@ -339,6 +443,8 @@ namespace GeneInfo
     [JsonSerializable(typeof(HomologyData))]
     [JsonSerializable(typeof(Homology))]
     [JsonSerializable(typeof(HomologyReference))]
+    [JsonSerializable(typeof(MapResponse))]
+    [JsonSerializable(typeof(MapEntry))]
     internal partial class SourceGenerationContext : JsonSerializerContext
     {
     }
