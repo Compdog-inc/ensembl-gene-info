@@ -1,0 +1,19 @@
+{
+  "profiles": {
+    "WSL": {
+      "commandName": "WSL2",
+      "distributionName": ""
+    },
+    "Help": {
+      "commandName": "Project"
+    },
+    "GeneTraverse": {
+      "commandName": "Project",
+      "commandLineArgs": "gene_traverse genes.txt orthologs.txt domains.txt tables/"
+    },
+    "ExonCounter": {
+      "commandName": "Project",
+      "commandLineArgs": "exon_counter transcripts.txt domains.txt exoncounts.csv"
+    }
+  }
+}

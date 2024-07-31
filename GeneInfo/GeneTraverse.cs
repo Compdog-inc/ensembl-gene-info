@@ -1,14 +1,15 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Text.Json.Serialization;
-using System.Threading.Tasks;
-
-namespace GeneInfo
+﻿namespace GeneInfo
 {
-    public static class Transcripts
+    public class GeneTraverse : IModule
     {
+        public string Name => "gene_traverse";
+
+        public string Description => "Collects information about transcripts in a gene and its orthologs.";
+
+        public string Usage => "gene_traverse [path_to_gene_list] [path_to_ortholog_list] [path_to_domain_list] [output_dir]";
+
+        public string Example => "gene_traverse genes.txt orthologs.txt domains.txt tables/";
+
         private static bool IsDomainNear(int a, int b)
         {
             return Math.Abs(a - b) < 20;
@@ -214,6 +215,167 @@ namespace GeneInfo
                 }
             }
             return (geneInfo, infos.ToArray());
+        }
+
+        public async Task<bool> Run(string[] args)
+        {
+            if (args.Length < 4)
+                return false;
+
+            string geneListPath = args[0];
+            string orthologListPath = args[1];
+            string domainListPath = args[2];
+            string outputDir = args[3];
+
+            bool validationError = false;
+            if (!File.Exists(geneListPath))
+            {
+                Logger.Error($"File '{geneListPath}' does not exist.");
+                validationError = true;
+            }
+
+            if (!File.Exists(orthologListPath))
+            {
+                Logger.Error($"File '{orthologListPath}' does not exist.");
+                validationError = true;
+            }
+
+            if (!File.Exists(domainListPath))
+            {
+                Logger.Error($"File '{domainListPath}' does not exist.");
+                validationError = true;
+            }
+
+            try
+            {
+                if (!Directory.Exists(outputDir))
+                {
+                    Directory.CreateDirectory(outputDir);
+                }
+            }
+            catch
+            {
+                Logger.Error($"Directory '{outputDir}' is not accessible.");
+                validationError = true;
+            }
+
+            if (validationError)
+                return true;
+
+            Logger.MinLevel = Logger.LogLevel.Info;
+            CsvTable orthologList = CsvReader.ReadFile(orthologListPath, ['\n', ','], 256, 2);
+            CsvTable domainList = CsvReader.ReadFile(domainListPath, ['\n', ','], 256, 2);
+            CsvTable geneList = CsvReader.ReadFile(geneListPath, ['\n', ','], 256, 2);
+            Logger.MinLevel = Logger.LogLevel.Trace;
+
+            bool CheckSpecies(string? species)
+            {
+                if (species == null) return false;
+
+                foreach (var row in orthologList.Rows)
+                {
+                    if (row.Values.Length > 0)
+                    {
+                        string val = row.Values[0].ToString().Trim();
+                        string formatted = val.Replace(' ', '_').ToLowerInvariant();
+                        if (species.Contains(formatted, StringComparison.InvariantCultureIgnoreCase))
+                        {
+                            return true;
+                        }
+                    }
+                }
+
+                return false;
+            }
+
+            bool CheckDomain(string? domain)
+            {
+                if (domain == null) return false;
+
+                foreach (var row in domainList.Rows)
+                {
+                    if (row.Values.Length > 0)
+                    {
+                        string[] vals = row.Values[0].ToString().Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).SelectMany(v => v.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)).ToArray();
+                        foreach (var val in vals)
+                        {
+                            if (domain.Contains(val, StringComparison.InvariantCultureIgnoreCase))
+                            {
+                                return true;
+                            }
+                        }
+                    }
+                }
+
+                return false;
+            }
+
+            void BuildTable(GeneInfo? geneInfo, TranscriptInfo[] transcripts)
+            {
+                var builder = new CsvBuilder()
+                .AddColumn("Organsim", CsvType.String)
+                .AddColumn("Transcript Ensembl ID", CsvType.String)
+                .AddColumn("# of Exons", CsvType.Number)
+                .AddColumn("# of Domains", CsvType.Number)
+                .AddColumn("# of Repeat domains", CsvType.Number)
+                .AddColumn("# of different domain types", CsvType.Number)
+                .AddColumn("list of domains present", CsvType.String)
+                .AddColumn("type", CsvType.String);
+
+                foreach (var transcript in transcripts)
+                {
+                    builder
+                        .AddToRow(transcript.Species)
+                        .AddToRow(transcript.Id)
+                        .AddToRow(transcript.ExonCount)
+                        .AddToRow(transcript.NumberOfDomains)
+                        .AddToRow(transcript.NumberOfMatchedDomains)
+                        .AddToRow(transcript.UniqueDomains.Length)
+                        .AddToRow(transcript.UniqueDomains.Length == 0 ? " " : transcript.UniqueDomains.Aggregate((a, b) => a + ", " + b))
+                        .AddToRow(transcript.Type)
+                        .PushRow();
+                }
+
+                var table = builder.ToTable();
+
+                if (!Directory.Exists(outputDir))
+                {
+                    Directory.CreateDirectory(outputDir);
+                }
+
+                string filename = Path.Join(outputDir, (geneInfo?.DisplayName ?? geneInfo?.Id ?? DateTimeOffset.Now.ToString("s")) + ".csv");
+                Logger.Info($"Writing table for gene {geneInfo?.DisplayName} ({geneInfo?.Id}) to {filename}");
+                CsvWriter.WriteToFile(filename, table, new CsvDialect(',', '"', '\\'), '\n');
+            }
+
+            bool IsGeneSymbol(string gene)
+            {
+                return !(gene.StartsWith("ENSG", StringComparison.InvariantCultureIgnoreCase) && gene[4..].All(char.IsNumber));
+            }
+
+            var geneArr = geneList.Rows.Where(v => v.Values.Length > 0).Select(v => v.Values[0].ToString()).ToArray();
+            (GeneInfo? geneInfo, TranscriptInfo[] transcripts)[] results = new (GeneInfo? geneInfo, TranscriptInfo[] transcripts)[geneArr.Length];
+
+            await Parallel.ForAsync(0, geneArr.Length, async (i, cancel) =>
+            {
+                var gene = geneArr[i].Trim();
+                results[i] = await GetTranscriptsInfoWithOrthologs(gene, IsGeneSymbol(gene), CheckSpecies, CheckDomain, "homo_sapiens", "human");
+            });
+
+            for (int i = 0; i < results.Length; i++)
+            {
+                try
+                {
+                    BuildTable(results[i].geneInfo, results[i].transcripts);
+                }
+                catch (Exception e)
+                {
+                    string filename = Path.Join(outputDir, (results[i].geneInfo?.DisplayName ?? results[i].geneInfo?.Id ?? "<time>") + ".csv");
+                    Logger.Error("Error writing file " + filename + ": " + e.ToString());
+                }
+            }
+
+            return true;
         }
     }
 
