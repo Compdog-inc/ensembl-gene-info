@@ -282,23 +282,7 @@ namespace GeneInfo
                 string output;
                 if (isOutputWildcard)
                 {
-                    string wild = Path.GetFileName(outputPath);
-                    int nameIndex = wild.IndexOf('*');
-                    int extIndex = wild.LastIndexOf('*');
-
-                    bool longExt = false;
-                    if (extIndex > 0 && wild[extIndex - 1] == '.')
-                    {
-                        longExt = true;
-                        extIndex--;
-                    }
-
-                    if (nameIndex != -1 && extIndex > 0)
-                        wild = (nameIndex > 0 ? wild[..(nameIndex - 1)] : string.Empty) + Path.GetFileNameWithoutExtension(transcriptListPaths[i]) + wild[(nameIndex + 1)..(extIndex - 1)] + Path.GetExtension(transcriptListPaths[i]) + wild[(extIndex + (longExt ? 2 : 1))..];
-                    else if (nameIndex != -1)
-                        wild = (nameIndex > 0 ? wild[..(nameIndex - 1)] : string.Empty) + Path.GetFileNameWithoutExtension(transcriptListPaths[i]) + wild[(nameIndex + 1)..];
-
-                    output = Path.Join(outputDir, wild);
+                    output = IModule.ParseFileWildcard(outputDir, outputPath, transcriptListPaths[i]);
                 }
                 else
                 {

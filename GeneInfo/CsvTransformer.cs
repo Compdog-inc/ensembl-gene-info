@@ -132,12 +132,12 @@ namespace GeneInfo
             StringBuilder sb = new();
             for (int i = 0; i < row.Length; i++)
             {
-                if (types[i] != CsvType.Number && dialect.Quote != null)
+                if (CsvParser.IsQuotable(types[i]) && dialect.Quote != null)
                     sb.Append(dialect.Quote); // opening quote
 
                 sb.Append(FormatEscape(row[i], dialect));
 
-                if (types[i] != CsvType.Number && dialect.Quote != null)
+                if (CsvParser.IsQuotable(types[i]) && dialect.Quote != null)
                     sb.Append(dialect.Quote); // closing quote
 
                 if (i < row.Length - 1)

@@ -18,6 +18,14 @@
     "ExonCounter Wildcard": {
       "commandName": "Project",
       "commandLineArgs": "exon_counter test/*.csv domains.txt test/*.exoncounts.*"
+    },
+    "DomainFilter": {
+      "commandName": "Project",
+      "commandLineArgs": "domain_filter tables/*.csv domains.txt tables/repeat/*.*"
+    },
+    "ExonCounterRatio": {
+      "commandName": "Project",
+      "commandLineArgs": "exon_counter_ratio tables/exoncounts/*.csv tables/exoncounts/ratios/*.*"
     }
   }
 }

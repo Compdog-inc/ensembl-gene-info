@@ -28,10 +28,33 @@
             }
         }
 
+        public static string ParseFileWildcard(string? outputDir, string wildcard, string path)
+        {
+            string wild = Path.GetFileName(wildcard);
+            int nameIndex = wild.IndexOf('*');
+            int extIndex = wild.LastIndexOf('*');
+
+            bool longExt = false;
+            if (extIndex > 0 && wild[extIndex - 1] == '.')
+            {
+                longExt = true;
+                extIndex--;
+            }
+
+            if (nameIndex != -1 && extIndex > 0)
+                wild = (nameIndex > 0 ? wild[..(nameIndex - 1)] : string.Empty) + Path.GetFileNameWithoutExtension(path) + (extIndex - nameIndex > 1 ? wild[(nameIndex + 1)..(extIndex - 1)] : string.Empty) + Path.GetExtension(path) + wild[(extIndex + (longExt ? 2 : 1))..];
+            else if (nameIndex != -1)
+                wild = (nameIndex > 0 ? wild[..(nameIndex - 1)] : string.Empty) + Path.GetFileNameWithoutExtension(path) + wild[(nameIndex + 1)..];
+
+            return Path.Join(outputDir, wild);
+        }
+
         public static readonly IModule[] IncludedModules = [
             new Help(),
             new GeneTraverse(),
-            new ExonCounter()
+            new ExonCounter(),
+            new ExonCounterRatio(),
+            new DomainFilter(),
             ];
     }
 

@@ -19,6 +19,23 @@ namespace GeneInfo
 
     public static class CsvParser
     {
+        public static bool IsQuotable(CsvType type)
+        {
+            switch (type)
+            {
+                case CsvType.Number:
+                case CsvType.Double:
+                    return false;
+                case CsvType.Boolean:
+                case CsvType.Time:
+                case CsvType.Date:
+                case CsvType.Timestamp:
+                case CsvType.String:
+                    return true;
+            }
+            return true;
+        }
+
         public static bool TryParseBoolean(string content, out bool value)
         {
             if (
