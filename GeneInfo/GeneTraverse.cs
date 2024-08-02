@@ -313,7 +313,7 @@
             void BuildTable(GeneInfo? geneInfo, TranscriptInfo[] transcripts)
             {
                 var builder = new CsvBuilder()
-                .AddColumn("Organsim", CsvType.String)
+                .AddColumn("Organism", CsvType.String)
                 .AddColumn("Transcript Ensembl ID", CsvType.String)
                 .AddColumn("# of Exons", CsvType.Number)
                 .AddColumn("# of Domains", CsvType.Number)
