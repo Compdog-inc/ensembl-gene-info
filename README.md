@@ -23,3 +23,11 @@ be passed after specifying the module name.
     - Usage:   `exon_counter [path_to_transcript_list or wildcard] [path_to_domain_list] [path_of_output_file.csv or wildcard (first * - name, second * - extension)]`
     - Example: `exon_counter transcripts.txt domains.txt exoncounts.csv`
     - Example: `exon_counter tables/*.csv domains.txt tables/*.exoncounts.*`
+- #### exon_counter_ratio - Appends an additional column to the output of the exon_counter module containing the ratio of exons inside and outside domain.
+    - Usage:   `exon_counter_ratio [path_to_exon_count_list or wildcard] [path_of_output_file.csv or wildcard (first * - name, second * - extension)]`
+    - Example: `exon_counter_ratio exoncounts.csv exoncounts.ratio.csv`
+    - Example: `exon_counter_ratio tables/exoncounts/*.csv tables/exoncounts/ratios/*.*`
+- #### domain_filter - Filters the list of domains in a table and adds them to a new column.
+    - Usage:   `domain_filter [path_to_transcript_list or wildcard] [path_to_domain_list] [path_of_output_file.csv or wildcard (first * - name, second * - extension)]`
+    - Example: `domain_filter gene.csv domains.txt gene.csv`
+    - Example: `domain_filter tables/*.csv domains.txt tables/*.*`
