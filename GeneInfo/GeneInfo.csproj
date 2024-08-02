@@ -7,6 +7,11 @@
     <Nullable>enable</Nullable>
     <PublishAot>true</PublishAot>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <Version>2.1.0</Version>
+    <Authors>Compdog Inc.</Authors>
+    <Description>A command line tool that retrieves information about a gene.</Description>
+    <RepositoryUrl>https://github.com/Compdog-inc/ensembl-gene-info</RepositoryUrl>
+    <NeutralLanguage>en</NeutralLanguage>
   </PropertyGroup>
 
   <ItemGroup>
