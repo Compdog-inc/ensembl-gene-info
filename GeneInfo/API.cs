@@ -68,6 +68,25 @@ namespace GeneInfo
             Logger.Info($"{name}: Retrying request in {retry / 1000} seconds");
         }
 
+        private static void HandleError(string name, ref int retry, string url, HttpRequestException e)
+        {
+            if (e.StatusCode == HttpStatusCode.TooManyRequests)
+            {
+
+                Logger.Warn($"{name}: Rate limited " + url);
+            }
+            else if (e.StatusCode == HttpStatusCode.InternalServerError)
+            {
+                Logger.Warn($"{name}: Internal server error " + url);
+                retry += 2 * RETRY_INCREMENT;
+            }
+            else
+            {
+                Logger.Error($"{name}: ERROR " + url + " " + e.ToString());
+            }
+            Logger.Info($"{name}: Retrying request in {retry / 1000} seconds");
+        }
+
         internal static async Task<Gene?> GetGene(string geneId)
         {
             string url = HOST + $"/lookup/id/{geneId}?expand=1;content-type=application/json";
@@ -98,6 +117,12 @@ namespace GeneInfo
                     }
                 }
                 catch (HttpRequestExceptionExt e)
+                {
+                    HandleError("GetGene", ref retry, url, e);
+                    await Task.Delay(retry);
+                    retry = Math.Min(MAX_RETRY_DELAY, retry + RETRY_INCREMENT);
+                }
+                catch (HttpRequestException e)
                 {
                     HandleError("GetGene", ref retry, url, e);
                     await Task.Delay(retry);
@@ -142,6 +167,12 @@ namespace GeneInfo
                     await Task.Delay(retry);
                     retry = Math.Min(MAX_RETRY_DELAY, retry + RETRY_INCREMENT);
                 }
+                catch (HttpRequestException e)
+                {
+                    HandleError("GetGeneWithSymbol", ref retry, url, e);
+                    await Task.Delay(retry);
+                    retry = Math.Min(MAX_RETRY_DELAY, retry + RETRY_INCREMENT);
+                }
             }
             return gene;
         }
@@ -176,6 +207,12 @@ namespace GeneInfo
                     }
                 }
                 catch (HttpRequestExceptionExt e)
+                {
+                    HandleError("GetTranscript", ref retry, url, e);
+                    await Task.Delay(retry);
+                    retry = Math.Min(MAX_RETRY_DELAY, retry + RETRY_INCREMENT);
+                }
+                catch (HttpRequestException e)
                 {
                     HandleError("GetTranscript", ref retry, url, e);
                     await Task.Delay(retry);
@@ -228,6 +265,13 @@ namespace GeneInfo
                     retry = Math.Min(MAX_RETRY_DELAY, retry + RETRY_INCREMENT);
                     domainList.Clear();
                 }
+                catch (HttpRequestException e)
+                {
+                    HandleError("GetSmartDomains", ref retry, url, e);
+                    await Task.Delay(retry);
+                    retry = Math.Min(MAX_RETRY_DELAY, retry + RETRY_INCREMENT);
+                    domainList.Clear();
+                }
             }
 
             return domainList.ToArray();
@@ -264,6 +308,12 @@ namespace GeneInfo
                     }
                 }
                 catch (HttpRequestExceptionExt e)
+                {
+                    HandleError("GetOrthologs", ref retry, url, e);
+                    await Task.Delay(retry);
+                    retry = Math.Min(MAX_RETRY_DELAY, retry + RETRY_INCREMENT);
+                }
+                catch (HttpRequestException e)
                 {
                     HandleError("GetOrthologs", ref retry, url, e);
                     await Task.Delay(retry);
@@ -319,6 +369,12 @@ namespace GeneInfo
                     }
                 }
                 catch (HttpRequestExceptionExt e)
+                {
+                    HandleError("MapTranslation", ref retry, url, e);
+                    await Task.Delay(retry);
+                    retry = Math.Min(MAX_RETRY_DELAY, retry + RETRY_INCREMENT);
+                }
+                catch (HttpRequestException e)
                 {
                     HandleError("MapTranslation", ref retry, url, e);
                     await Task.Delay(retry);
